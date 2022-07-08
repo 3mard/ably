@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
 	"net"
 	"time"
@@ -21,11 +22,13 @@ type Server struct {
 	clientRepo ClientRepository
 }
 
+// NewServer creates a new server
 func NewServer(address string, ttl time.Duration) *Server {
 	return &Server{address: address,
 		clientRepo: NewInMemoryClientRepository(ttl)}
 }
 
+// Start starts the server
 func (s *Server) Start() error {
 	ln, err := net.Listen("tcp", s.address)
 	if err != nil {
@@ -34,7 +37,7 @@ func (s *Server) Start() error {
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			fmt.Println("Error accepting connection: ", err)
+			log.Println("Error accepting connection: ", err)
 			continue
 		}
 		go s.handelConnection(conn)
@@ -44,7 +47,7 @@ func (s *Server) Start() error {
 func (s *Server) handelConnection(conn net.Conn) {
 	msg, err := s.handleHandshake(conn)
 	if err != nil {
-		fmt.Println("Error:", err)
+		log.Println("error handling handshake: ", err)
 	}
 	id := msg.Payload.UUID
 	var numbersToSend []int32
@@ -115,14 +118,14 @@ func (s *Server) handleHandshake(conn net.Conn) (message.HandshakeMessage, error
 	var handShakeMessage message.HandshakeMessage
 	err = json.Unmarshal(buf[:msgSize], &handShakeMessage)
 	if err != nil {
-		fmt.Println("Error: couldn't unmarshal", err)
+		log.Println("Error: couldn't unmarshal", err)
 		return message.HandshakeMessage{}, err
 	}
 	if handShakeMessage.Type != message.Handshake {
 		return message.HandshakeMessage{}, fmt.Errorf("Expected handshake message")
 	}
 
-	fmt.Println("shook hands")
+	log.Println("shook hands")
 	return handShakeMessage, nil
 }
 

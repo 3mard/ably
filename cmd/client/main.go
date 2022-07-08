@@ -3,10 +3,15 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 
 	"3mard.github.com/ably/pkg/client"
 	"3mard.github.com/ably/pkg/hash"
+)
+
+const (
+	MaxConnectRetry = uint64(3)
 )
 
 func main() {
@@ -17,54 +22,43 @@ func main() {
 		return
 	}
 	cl := client.NewClient(*address)
-	err := ConnectToServerWithRetrial(cl)
+	err := cl.ConnectWithRetrial(MaxConnectRetry)
 	if err != nil {
 		log.Fatalf("error connecting to server %v", err)
 	}
 	err = cl.Handshake(client.HandshakeWithNumberOfMessages(10))
 	if err != nil {
-		panic(err)
+		log.Fatalf("error handshaking with server %v", err)
 	}
 	checksumMessage, err := cl.ReadChecksum()
 	if err != nil {
-		panic(err)
+		log.Fatalf("error reading checksum %v", err)
 	}
-	fmt.Println(checksumMessage)
+	log.Printf("serve checksum: %v", checksumMessage.Checksum)
 	data := []int32{}
-	for i := 0; i < 3; i++ {
-		number, err := cl.ReadNumber()
-		if err != nil {
-			panic(err)
+	progress := 0
+	for progress < checksumMessage.NumberOfMessages-1 {
+		message, err := cl.ReadSequence()
+		if progress >= checksumMessage.NumberOfMessages {
+			break
 		}
-		data = append(data, number)
-	}
-	err = cl.Disconnect()
-	if err != nil {
-		panic(err)
-	}
-
-	err = cl.Connect()
-	if err != nil {
-		panic(err)
-	}
-
-	err = cl.Handshake(client.HandshakeWithOffset(3))
-	if err != nil {
-		panic(err)
-	}
-
-	for i := 0; i < 7; i++ {
-		number, err := cl.ReadNumber()
-		if err != nil {
-			panic(err)
+		// connection dropped
+		if err == io.EOF {
+			err = cl.ConnectWithRetrial(MaxConnectRetry)
+			if err != nil {
+				log.Fatalf("error connecting to server %v", err)
+			}
+			err = cl.Handshake(client.HandshakeWithOffset(progress))
+			if err != nil {
+				log.Fatalf("error handshaking with server %v", err)
+			}
+			continue
 		}
-		fmt.Println("Server sent number:", number)
-		data = append(data, number)
+		if err != nil {
+			log.Fatalf("error reading number %v", err)
+		}
+		data = append(data, message.Sequence)
+		progress = message.Index
 	}
-	fmt.Println("Client received data:", hash.CalculateChecksum(data))
-
-}
-
-func ConnectToServerWithRetrial(cl *client.Client) error {
-	return nil
+	log.Printf("Calculated hash %v", hash.CalculateChecksum(data))
 }

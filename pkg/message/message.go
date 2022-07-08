@@ -3,50 +3,50 @@ package message
 type MessageType int
 
 const (
-	Handshake MessageType = iota
-	Sequence  MessageType = iota
-	Error     MessageType = iota
-	Checksum  MessageType = iota
+	Handshake MessageType = 0
+	Sequence  MessageType = 1
+	Error     MessageType = 2
+	Checksum  MessageType = 3
 )
 
 type Message struct {
-	Type    MessageType
-	Payload interface{}
+	Type    MessageType `json:"type"`
+	Payload interface{} `json:"payload"`
 }
 
 type HandshakePayload struct {
-	UUID             string
-	Continue         bool
-	NumberOfMessages int
-	Offset           int
+	UUID             string `json:"uuid"`
+	Continue         bool   `json:"continue"`
+	NumberOfMessages int    `json:"numberOfMessages"`
+	Offset           int    `json:"offset"`
 }
 
 type HandshakeMessage struct {
-	Type    MessageType
-	Payload HandshakePayload
+	Type    MessageType      `json:"type"`
+	Payload HandshakePayload `json:"payload"`
 }
 
 type SequencePayload struct {
-	Sequence int32
-	Index    int
+	Sequence int32 `json:"sequence"`
+	Index    int   `json:"index"`
 }
 
 type SequenceMessage struct {
-	Type    MessageType
-	Payload SequencePayload
+	Type    MessageType     `json:"type"`
+	Payload SequencePayload `json:"payload"`
 }
 
 type ErrorMessage struct {
-	Type    MessageType
-	Payload string
+	Type    MessageType `json:"type"`
+	Payload string      `json:"payload"`
 }
 
 type ChecksumPayload struct {
-	Checksum         string
-	NumberOfMessages int
+	Checksum         string `json:"checksum"`
+	NumberOfMessages int    `json:"numberOfMessages"`
 }
 
 type ChecksumMessage struct {
-	Type    MessageType
-	Payload ChecksumPayload
+	Type    MessageType     `json:"type"`
+	Payload ChecksumPayload `json:"payload"`
 }

@@ -10,11 +10,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	MaxConnectRetry = uint64(3)
+)
+
 func TestConnect(t *testing.T) {
 	client := cl.NewClient(":8080")
 	server := server.NewServer(":8080", 10*time.Second)
 	go server.Start()
-	err := client.Connect()
+	err := client.ConnectWithRetrial(MaxConnectRetry)
 	assert.NoError(t, err)
 }
 
@@ -22,7 +26,7 @@ func TestHandshake(t *testing.T) {
 	client := cl.NewClient(":8080")
 	server := server.NewServer(":8080", 10*time.Second)
 	go server.Start()
-	err := client.Connect()
+	err := client.ConnectWithRetrial(MaxConnectRetry)
 	assert.NoError(t, err)
 	err = client.Handshake(cl.HandshakeWithNumberOfMessages(10))
 	assert.NoError(t, err)
@@ -32,7 +36,7 @@ func TestReceivingChecksum(t *testing.T) {
 	client := cl.NewClient(":8080")
 	server := server.NewServer(":8080", 10*time.Second)
 	go server.Start()
-	err := client.Connect()
+	err := client.ConnectWithRetrial(MaxConnectRetry)
 	assert.NoError(t, err)
 	err = client.Handshake(cl.HandshakeWithNumberOfMessages(10))
 	assert.NoError(t, err)
@@ -45,7 +49,7 @@ func TestErrorResumeReceivingNewClient(t *testing.T) {
 	client := cl.NewClient(":8080", cl.WithClientId("test"))
 	server := server.NewServer(":8080", 10*time.Second)
 	go server.Start()
-	err := client.Connect()
+	err := client.ConnectWithRetrial(MaxConnectRetry)
 	assert.NoError(t, err)
 	err = client.Handshake(cl.HandshakeWithNumberOfMessages(10), cl.HandshakeWithOffset(20))
 	assert.NoError(t, err)
@@ -59,7 +63,7 @@ func TestReceivingSequence(t *testing.T) {
 	client := cl.NewClient(":8080")
 	server := server.NewServer(":8080", 10*time.Second)
 	go server.Start()
-	err := client.Connect()
+	err := client.ConnectWithRetrial(MaxConnectRetry)
 	assert.NoError(t, err)
 	err = client.Handshake(cl.HandshakeWithNumberOfMessages(10))
 	assert.NoError(t, err)
@@ -67,9 +71,9 @@ func TestReceivingSequence(t *testing.T) {
 	assert.NoError(t, err)
 	data := make([]int32, 0)
 	for i := 0; i < 10; i++ {
-		number, err := client.ReadNumber()
+		msg, err := client.ReadSequence()
 		assert.NoError(t, err)
-		data = append(data, number)
+		data = append(data, msg.Sequence)
 	}
 	assert.Equal(t, checksum.Checksum, hash.CalculateChecksum(data))
 }
@@ -78,7 +82,7 @@ func TestReceivingSequenceWithoutNumberOfMessages(t *testing.T) {
 	client := cl.NewClient(":8080")
 	server := server.NewServer(":8080", 10*time.Second)
 	go server.Start()
-	err := client.Connect()
+	err := client.ConnectWithRetrial(MaxConnectRetry)
 	assert.NoError(t, err)
 	err = client.Handshake()
 	assert.NoError(t, err)
@@ -87,9 +91,9 @@ func TestReceivingSequenceWithoutNumberOfMessages(t *testing.T) {
 	assert.Greater(t, checksum.NumberOfMessages, 0)
 	data := make([]int32, 0)
 	for i := 0; i < checksum.NumberOfMessages; i++ {
-		number, err := client.ReadNumber()
+		msg, err := client.ReadSequence()
 		assert.NoError(t, err)
-		data = append(data, number)
+		data = append(data, msg.Sequence)
 	}
 	assert.Equal(t, checksum.Checksum, hash.CalculateChecksum(data))
 }
@@ -98,7 +102,7 @@ func TestReceivingSequenceConnectionDrop(t *testing.T) {
 	client := cl.NewClient(":8080")
 	server := server.NewServer(":8080", 10*time.Second)
 	go server.Start()
-	err := client.Connect()
+	err := client.ConnectWithRetrial(MaxConnectRetry)
 	assert.NoError(t, err)
 	err = client.Handshake(cl.HandshakeWithNumberOfMessages(10))
 	assert.NoError(t, err)
@@ -107,20 +111,20 @@ func TestReceivingSequenceConnectionDrop(t *testing.T) {
 	assert.Equal(t, checksum.NumberOfMessages, 10)
 	data := make([]int32, 0)
 	for i := 0; i < 2; i++ {
-		number, err := client.ReadNumber()
+		msg, err := client.ReadSequence()
 		assert.NoError(t, err)
-		data = append(data, number)
+		data = append(data, msg.Sequence)
 	}
 	err = client.Disconnect()
 	assert.NoError(t, err)
-	err = client.Connect()
+	err = client.ConnectWithRetrial(MaxConnectRetry)
 	assert.NoError(t, err)
 	err = client.Handshake(cl.HandshakeWithOffset(2))
 	assert.NoError(t, err)
 	for i := 2; i < 10; i++ {
-		number, err := client.ReadNumber()
+		msg, err := client.ReadSequence()
 		assert.NoError(t, err)
-		data = append(data, number)
+		data = append(data, msg.Sequence)
 	}
 	assert.Equal(t, checksum.Checksum, hash.CalculateChecksum(data))
 }
